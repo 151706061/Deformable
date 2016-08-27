@@ -1,8 +1,8 @@
 /*
  * Medical Image Registration ToolKit (MIRTK)
  *
- * Copyright 2013-2015 Imperial College London
- * Copyright 2013-2015 Andreas Schuh
+ * Copyright 2013-2016 Imperial College London
+ * Copyright 2013-2016 Andreas Schuh
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,75 +17,72 @@
  * limitations under the License.
  */
 
-#include <mirtkCommon.h>
-#include <mirtkOptions.h>
+#include "mirtk/Common.h"
+#include "mirtk/Options.h"
 
-#include <mirtkImageIOConfig.h>
-#include <mirtkNumericsConfig.h>
-#include <mirtkDeformableConfig.h>
-#include <mirtkTransformationConfig.h>
+#include "mirtk/IOConfig.h"
+#include "mirtk/NumericsConfig.h"
+#include "mirtk/DeformableConfig.h"
+#include "mirtk/TransformationConfig.h"
 
-#include <mirtkPointSetUtils.h>
-#include <mirtkTransformation.h>
-#include <mirtkBSplineFreeFormTransformation3D.h>
-#include <mirtkBSplineFreeFormTransformationSV.h>
+#include "mirtk/PointSetIO.h"
+#include "mirtk/PointSetUtils.h"
+#include "mirtk/Transformation.h"
+#include "mirtk/BSplineFreeFormTransformation3D.h"
+#include "mirtk/BSplineFreeFormTransformationSV.h"
 
 // Deformable surface model / parameterization
-#include <mirtkDeformableSurfaceModel.h>
-#include <mirtkDeformableSurfaceLogger.h>
-#include <mirtkDeformableSurfaceDebugger.h>
+#include "mirtk/DeformableSurfaceModel.h"
+#include "mirtk/DeformableSurfaceLogger.h"
+#include "mirtk/DeformableSurfaceDebugger.h"
 
 // Optimization method
-#include <mirtkLocalOptimizer.h>
-#include <mirtkEulerMethod.h>
-#include <mirtkEulerMethodWithMomentum.h>
-#include <mirtkGradientDescent.h>
-#include <mirtkInexactLineSearch.h>
-#include <mirtkBrentLineSearch.h>
+#include "mirtk/LocalOptimizer.h"
+#include "mirtk/EulerMethod.h"
+#include "mirtk/EulerMethodWithMomentum.h"
+#include "mirtk/GradientDescent.h"
+#include "mirtk/InexactLineSearch.h"
+#include "mirtk/BrentLineSearch.h"
 
 // Stopping criteria
-#include <mirtkMinActiveStoppingCriterion.h>
-#include <mirtkInflationStoppingCriterion.h>
+#include "mirtk/EnergyThreshold.h"
+#include "mirtk/MinActiveStoppingCriterion.h"
+#include "mirtk/InflationStoppingCriterion.h"
 
 // External forces
-#include <mirtkBalloonForce.h>
-#include <mirtkImageEdgeForce.h>
-#include <mirtkImplicitSurfaceDistance.h>
-#include <mirtkImplicitSurfaceSpringForce.h>
+#include "mirtk/BalloonForce.h"
+#include "mirtk/ImageEdgeForce.h"
+#include "mirtk/ImageEdgeDistance.h"
+#include "mirtk/ImplicitSurfaceDistance.h"
 
 // Internal forces
-#include <mirtkSpringForce.h>
-#include <mirtkInflationForce.h>
-#include <mirtkCurvatureConstraint.h>
-#include <mirtkQuadraticCurvatureConstraint.h>
-#include <mirtkMetricDistortion.h>
-#include <mirtkStretchingForce.h>
-#include <mirtkRepulsiveForce.h>
-#include <mirtkNonSelfIntersectionConstraint.h>
+#include "mirtk/SpringForce.h"
+#include "mirtk/InflationForce.h"
+#include "mirtk/CurvatureConstraint.h"
+#include "mirtk/GaussCurvatureConstraint.h"
+#include "mirtk/MeanCurvatureConstraint.h"
+#include "mirtk/QuadraticCurvatureConstraint.h"
+#include "mirtk/MetricDistortion.h"
+#include "mirtk/StretchingForce.h"
+#include "mirtk/RepulsiveForce.h"
+#include "mirtk/NonSelfIntersectionConstraint.h"
 
 // Transformation constraints
-#include <mirtkSmoothnessConstraint.h>
+#include "mirtk/SmoothnessConstraint.h"
 
 // VTK
-#include <vtkPointData.h>
-#include <vtkCellData.h>
-#include <vtkDataArray.h>
-#include <vtkFloatArray.h>
-#include <vtkGenericCell.h>
-#include <vtkCellTreeLocator.h>
-#include <vtkSortDataArray.h>
-#include <vtkPolyDataNormals.h>
+#include "vtkPointData.h"
+#include "vtkCellData.h"
+#include "vtkDataArray.h"
+#include "vtkFloatArray.h"
+#include "vtkGenericCell.h"
+#include "vtkCellTreeLocator.h"
+#include "vtkSortDataArray.h"
+#include "vtkPolyDataNormals.h"
 
 
 using namespace mirtk;
 
-
-// =============================================================================
-// Default settings
-// =============================================================================
-
-const int    nsteps = 100;
-const double dt     = 1.0;
 
 // =============================================================================
 // Help
@@ -115,10 +112,10 @@ void PrintHelp(const char *name)
   cout << "      - ``SVFFD``: Stationary velocity (SV) cubic B-spline FFD." << endl;
   cout << "  -image <file>" << endl;
   cout << "      Intensity image on which external forces are based. (default: none)" << endl;
-  cout << "  -dmap <file>" << endl;
+  cout << "  -distance-image, -dmap <file>" << endl;
   cout << "      Euclidean distance image on which implicit surface forces are based. (default: none)" << endl;
-  cout << "  -dmap-offset <value>" << endl;
-  cout << "      Implicit surface isovalue in :option:`-dmap` image. (default: 0)" << endl;
+  cout << "  -distance-offset, -dmap-offset <value>" << endl;
+  cout << "      Implicit surface isovalue of :option:`-distance-image`. (default: 0)" << endl;
   cout << "  -mask <file>" << endl;
   cout << "      Mask defining region in which external forces are non-zero. (default: none)" << endl;
   cout << "  -padding <value>" << endl;
@@ -135,7 +132,7 @@ void PrintHelp(const char *name)
   cout << "      - ``EulerMethodWithMomentum``:  Forward Euler integration with momentum." << endl;
   cout << "      - ``GradientDescent``:          Gradient descent optimizer." << endl;
   cout << "      - ``ConjugateGradientDescent``: Conjugate gradient descent." << endl;
-  cout << "  -linesearch <name>" << endl;
+  cout << "  -line-search, -linesearch <name>" << endl;
   cout << "      Line search method used by gradient descent optimizers:" << endl;
   cout << "      - ``Adaptive``: Line search with adaptive step length. (default)" << endl;
   cout << "      - ``Brent``: Brent's line search method." << endl;
@@ -150,15 +147,20 @@ void PrintHelp(const char *name)
   cout << "      Perform optimization on starting at level <max> until level <min> (> 0)." << endl;
   cout << "      When only the <max> level argument is given, the <min> level is set to 1." << endl;
   cout << "      On each level, the node forces are averaged :math:`2^{level-1}` times which" << endl;
-  cout << "      is similar to computing the forces on a coarser mesh. (default: 0 0)" << endl;
-  cout << "  -steps | -iterations <n>" << endl;
-  cout << "      Maximum number of iterations. (default: " << nsteps << ")" << endl;
-  cout << "  -step | -dt <value>" << endl;
-  cout << "      Length of integration/gradient steps. (default: " << dt << ")" << endl;
-  cout << "  -step-magnification <mag>" << endl;
-  cout << "      Multiplicative factor for magnification of maximum :option:`-step` length." << endl;
-  cout << "      The step length at level n (highest level at n=1) is :math:`dt * mag^{level-1}`. (default: 1)" << endl;
-  cout << "  -maxdx <value>" << endl;
+  cout << "      is similar to computing the forces on a coarser mesh. See :option:`-force-averaging`. (default: 0 0)" << endl;
+  cout << "  -force-averaging <n>..." << endl;
+  cout << "      Number of force averaging steps. (default: 0)" << endl;
+  cout << "      Cannot be combined with :option:`-magnitude-averaging`." << endl;
+  cout << "  -magnitude-averaging <n>..." << endl;
+  cout << "      Number of force magnitude averaging steps. (default: 0)" << endl;
+  cout << "      Cannot be combined with :option:`-force-averaging`." << endl;
+  cout << "  -distance-averaging <n>..." << endl;
+  cout << "      Number of :option:`-distance` force averaging steps. (default: 0)" << endl;
+  cout << "  -steps, -max-steps, -iterations, -max-iterations <n>..." << endl;
+  cout << "      Maximum number of iterations. (default: 100)" << endl;
+  cout << "  -step, -dt <value>..." << endl;
+  cout << "      Length of integration/gradient steps. (default: 1)" << endl;
+  cout << "  -max-dx, -maxdx, -dx <value>..." << endl;
   cout << "      Maximum displacement of a node at each iteration. By default, the node displacements" << endl;
   cout << "      are normalized by the maximum node displacement. When this option is used, the node" << endl;
   cout << "      displacements are clamped to the specified maximum length instead. (default: :option:`-step`)" << endl;
@@ -166,18 +168,17 @@ void PrintHelp(const char *name)
   cout << "      Remesh surface mesh every n-th iteration. (default: " << model.RemeshInterval() << ")" << endl;
   cout << "  -remesh-adaptively" << endl;
   cout << "      Remesh surface mesh using an adaptive edge length interval based on local curvature" << endl;
-  cout << "      of the deformed surface mesh or input implicit surface (:option:`-dmap`)." << endl;
-  cout << "  -minedgelength <value>" << endl;
+  cout << "      of the deformed surface mesh or input implicit surface (:option:`-distance-image`)." << endl;
+  cout << "  -[no]triangle-inversion" << endl;
+  cout << "      Whether to allow inversion of pair of triangles during surface remeshing. (default: on)" << endl;
+  cout << "  -min-edgelength <value>..." << endl;
   cout << "      Minimum edge length used for local adaptive remeshing. (default: " << model.MinEdgeLength() << ")" << endl;
-  cout << "  -maxedgelength <value>" << endl;
+  cout << "  -max-edgelength <value>..." << endl;
   cout << "      Maximum edge length used for local adaptive remeshing. (default: " << model.MaxEdgeLength() << ")" << endl;
-  cout << "  -edgelength-magnification <mag>" << endl;
-  cout << "      Multiplicative factor for magnification of :option:`-minedgelength` and :option:`-maxedgelength`." << endl;
-  cout << "      The edge length at level n (highest level at n=1) is :math:`l * mag^{level-1}`. (default: 1)" << endl;
-  cout << "  -minangle <degrees>" << endl;
+  cout << "  -min-angle <degrees>..." << endl;
   cout << "      Minimum angle between edge node normals for an edge be excluded from collapsing during" << endl;
   cout << "      iterative :option:`-remesh` operations. (default: " << model.MinFeatureAngle() << ")" << endl;
-  cout << "  -maxangle <degrees>" << endl;
+  cout << "  -max-angle <degrees>..." << endl;
   cout << "      Maximum angle between edge node normals for an edge be excluded from splitting during" << endl;
   cout << "      iterative :option:`-remesh` operations. (default: " << model.MaxFeatureAngle() << ")" << endl;
   cout << "  -lowpass <n>" << endl;
@@ -188,10 +189,17 @@ void PrintHelp(const char *name)
   cout << "      Low-pass filtering band argument, usually in the range [0, 2]. (default: " << model.LowPassBand() << ")" << endl;
   cout << "  -nointersection" << endl;
   cout << "      Hard non-self-intersection constraint for surface meshes. (default: off)" << endl;
-  cout << "  -mind | -mindistance <value>" << endl;
+  cout << "  -mind, -min-distance <value>" << endl;
   cout << "      Minimum distance to other triangles in front of a given triangle." << endl;
-  cout << "  -minw | -minwidth <value>" << endl;
+  cout << "  -minw, -min-width <value>" << endl;
   cout << "      Minimum distance to other triangles in the back of a given triangle." << endl;
+  cout << "  -max-collision-angle <degrees>" << endl;
+  cout << "      Maximum angle between vector connecting centers of nearby triangles and the face normal" << endl;
+  cout << "      of the reference triangle for a collision to be detected. When the triangles are within" << endl;
+  cout << "      the same flat neighborhood of the surface mesh, this angle will be close to 90 degrees." << endl;
+  cout << "      This parameter reduces false collision detection between neighboring triangles. (default: " << model.MaxCollisionAngle() << ")" << endl;
+  cout << "  -fast-collision-test\n";
+  cout << "      Use fast approximate triangle-triangle collision test based on distance of their centers only. (default: off)" << endl;
   cout << "  -reset-status" << endl;
   cout << "      Set status of all mesh nodes to active again after each level (see :option:`-levels`). (default: off)" << endl;
   cout << endl;
@@ -201,35 +209,57 @@ void PrintHelp(const char *name)
   cout << "      than only the adjacent nodes, but also up to n-connected nodes. (default: " << model.NeighborhoodRadius() << ")" << endl;
   cout << "  -distance <w>" << endl;
   cout << "      Weight of implicit surface distance. (default: 0)" << endl;
-  cout << "  -distance-spring | -dspring <w>" << endl;
-  cout << "      Weight of implicit surface spring force. (default: 0)" << endl;
   cout << "  -distance-measure <name>" << endl;
   cout << "      Implicit surface distance measure used by :option:`-distance` and :option:`-distance-spring`):" << endl;
-  cout << "      - ``minimum``: Minimum surface distance (see :option:`-dmap`, default)" << endl;
+  cout << "      - ``minimum``: Minimum surface distance (see :option:`-distance-image`, default)" << endl;
   cout << "      - ``normal``:  Estimate distance by casting rays along normal direction." << endl;
-  cout << "  -balloon-inflation | -balloon <w>" << endl;
+  cout << "  -balloon-inflation, -balloon <w>" << endl;
   cout << "      Weight of inflation force based on local intensity statistics. (default: 0)" << endl;
   cout << "  -balloon-deflation <w>" << endl;
   cout << "      Weight of deflation force based on local intensity statistics. (default: 0)" << endl;
+  cout << "  -balloon-min <intensity>" << endl;
+  cout << "      Global lower intensity threshold for :option:`-balloon-inflation` or :option:`-balloon-deflation`. (default: -inf)" << endl;
+  cout << "  -balloon-max <intensity>" << endl;
+  cout << "      Global lower intensity threshold for :option:`-balloon-inflation` or :option:`-balloon-deflation`. (default: +inf)" << endl;
+  cout << "  -balloon-range <min> <max>" << endl;
+  cout << "      Global intensity thresholds for :option:`-balloon-inflation` or :option:`-balloon-deflation`. (default: [-inf +inf])" << endl;
+  cout << "  -balloon-radius <r>" << endl;
+  cout << "      Radius for local intensity statistics of :option:`-balloon-inflation` or :option:`-balloon-deflation`. (default: 7 times voxel size)" << endl;
+  cout << "  -balloon-sigma <sigma>" << endl;
+  cout << "      Local intensity standard deviation scaling factor of :option:`-balloon-inflation` or :option:`-balloon-deflation`. (default: 5)" << endl;
+  cout << "  -balloon-mask <file>" << endl;
+  cout << "      Image mask used for local intensity statistics for :option:`-balloon-inflation` or :option:`-balloon-deflation`." << endl;
+  cout << "      (default: interior of deformed surface)" << endl;
   cout << "  -edges <w>" << endl;
   cout << "      Weight of image edge force. (default: 0)" << endl;
+  cout << "  -edge-distance <w>" << endl;
+  cout << "      Weight of closest image edge distance force. (default: 0)" << endl;
   cout << "  -inflation <w>" << endl;
   cout << "      Weight of surface inflation force used for cortical surface inflation. (default: 0)" << endl;
   cout << "  -bending-energy <w>" << endl;
   cout << "      Weight of bending energy of :option:`-dof` transformation. (default: 0)" << endl;
   cout << "  -spring <w>" << endl;
   cout << "      Weight of internal spring force. (default: 0)" << endl;
-  cout << "  -normal-spring | -nspring <w>" << endl;
+  cout << "  -normal-spring, -nspring <w>" << endl;
   cout << "      Weight of internal spring force in normal direction. (default: 0)" << endl;
-  cout << "  -tangential-spring | -tspring <w>" << endl;
+  cout << "  -tangential-spring, -tspring <w>" << endl;
   cout << "      Weight of internal spring force in tangent plane. (default: 0)" << endl;
   cout << "  -normalized-spring <w>" << endl;
   cout << "      Weight of internal spring force normalized w.r.t. force in normal direction. (default: 0)" << endl;
   cout << "  -curvature <w>" << endl;
   cout << "      Weight of surface curvature. (default: 0)" << endl;
-  cout << "  -quadratic-curvature | -qcurvature <w>" << endl;
-  cout << "      Weight of surface curvature estimated by quadratic fit of node neighbor" << endl;
-  cout << "      to tangent plane distance. (default: 0)" << endl;
+  cout << "  -quadratic-curvature, -qcurvature <w>" << endl;
+  cout << "      Weight of surface curvature estimated by quadratic fit of node neighbor to tangent plane distance. (default: 0)" << endl;
+  cout << "  -distant-quadratic-curvature, -distant-qcurvature <w>" << endl;
+  cout << "      Weight of :option:`-quadratic-curvature` proportional to the :option:`-distance` magnitude. (default: 0)" << endl;
+  cout << "  -mean-curvature, -mcurvature <w>" << endl;
+  cout << "      Weight of mean curvature constraint. (default: 0)" << endl;
+  cout << "  -distant-mean-curvature, -distant-mcurvature <w>" << endl;
+  cout << "      Weight of :option:`-mean-curvature` proportional to the :option:`-distance` magnitude. (default: 0)" << endl;
+  cout << "  -gauss-curvature, -gcurvature <w>" << endl;
+  cout << "      Weight of Gauss curvature constraint. (default: 0)" << endl;
+  cout << "  -distant-gauss-curvature, -distant-gcurvature <w>" << endl;
+  cout << "      Weight of :option:`-gauss-curvature` proportional to the :option:`-distance` magnitude. (default: 0)" << endl;
   cout << "  -distortion <w>" << endl;
   cout << "      Weight of metric distortion." << endl;
   cout << "  -stretching <w>" << endl;
@@ -244,15 +274,15 @@ void PrintHelp(const char *name)
   cout << "  -extrinsic-energy" << endl;
   cout << "      Consider only sum of external energy terms as total energy value of deformable model functional." << endl;
   cout << "      Internal forces still contribute to the gradient of the functional, but are excluded from the" << endl;
-  cout << "      energy function value (see :option:`-epsilon` and :option:`-minenergy`). (default: off)" << endl;
+  cout << "      energy function value (see :option:`-epsilon` and :option:`-min-energy`). (default: off)" << endl;
   cout << "  -epsilon <value>" << endl;
   cout << "      Minimum change of deformable surface energy convergence criterion." << endl;
   cout << "  -delta <value>" << endl;
   cout << "      Minimum maximum node displacement or :option:`-dof` parameter value." << endl;
-  cout << "  -minenergy <value>" << endl;
+  cout << "  -min-energy <value>" << endl;
   cout << "      Target deformable surface energy value. (default: 0)" << endl;
-  cout << "  -minactive <n>" << endl;
-  cout << "      Minimum percentage of active nodes. (default: 0)" << endl;
+  cout << "  -min-active <ratio>" << endl;
+  cout << "      Minimum ratio of active nodes in [0, 1]. (default: 0)" << endl;
   cout << "  -inflation-error <threshold>" << endl;
   cout << "      Threshold of surface inflation RMS measure. (default: off)" << endl;
   cout << endl;
@@ -304,11 +334,11 @@ void PrintHelp(const char *name)
   cout << "      Write legacy VTK in binary format. (default: on)" << endl;
   cout << "  -[no]compress" << endl;
   cout << "      Write XML VTK file with or without compression. (default: on)" << endl;
-  cout << "  -debugprefix <prefix>" << endl;
+  cout << "  -debug-prefix <prefix>" << endl;
   cout << "      File name prefix for :option:`-debug` output. (default: deform_mesh\\_)" << endl;
-  cout << "  -debuginterval <n>" << endl;
+  cout << "  -debug-interval <n>" << endl;
   cout << "      Write :option:`-debug` output every n-th iteration. (default: 10)" << endl;
-  cout << "  -[no]levelprefix" << endl;
+  cout << "  -[no]level-prefix" << endl;
   cout << "      Write :option:`-debug` output without level prefix in file names. (default: on)" << endl;
   cout << endl;
   cout << "Advanced options:" << endl;
@@ -323,6 +353,36 @@ void PrintHelp(const char *name)
 // =============================================================================
 
 // -----------------------------------------------------------------------------
+/// Get parameter for current level
+///
+/// Some parameters can be set per level. The number of levels is defined by
+/// the maximum number of values for each parameter. When the user did not
+/// specify a parameter for each level, the first value is used for the initial
+/// levels for which a parameter value is missing.
+template <class T>
+T ParameterValue(int level, int nlevels, const Array<T> &values, T default_value)
+{
+  mirtkAssert(nlevels > 0,                   "at least one level");
+  mirtkAssert(0 <= level && level < nlevels, "valid level index");
+  const int nvalues = static_cast<int>(values.size());
+  if (nvalues == 0) return default_value;
+  const int idx = level - (nlevels - nvalues);
+  return values[idx < 0 ? 0 : idx];
+}
+
+// -----------------------------------------------------------------------------
+/// Initialize array of total energy gradient averaging steps
+Array<int> GradientAveraging(int min_level, int max_level)
+{
+  Array<int> navgs;
+  navgs.reserve(max_level - min_level + 1);
+  for (int level = max_level; level >= min_level; --level) {
+    navgs.push_back(level > 1 ? static_cast<int>(pow(2, level - 2)) : 0);
+  }
+  return navgs;
+}
+
+// -----------------------------------------------------------------------------
 /// Subract mean of tracked normal displacements
 void DemeanValues(vtkDataArray *values, bool use_median = false)
 {
@@ -331,7 +391,7 @@ void DemeanValues(vtkDataArray *values, bool use_median = false)
   // Compute mean (or median)
   if (use_median) {
     vtkSmartPointer<vtkDataArray> sorted;
-    sorted = vtkSmartPointer<vtkDataArray>::NewInstance(values);
+    sorted.TakeReference(values->NewInstance());
     sorted->DeepCopy(values);
     vtkSortDataArray::Sort(sorted);
     mu = sorted->GetComponent(sorted->GetNumberOfTuples() / 2, 0);
@@ -383,7 +443,7 @@ void NormalizeValues(vtkDataArray *values, bool use_median = false)
   // Compute mean (or median)
   if (use_median) {
     vtkSmartPointer<vtkDataArray> sorted;
-    sorted = vtkSmartPointer<vtkDataArray>::NewInstance(values);
+    sorted.TakeReference(values->NewInstance());
     sorted->DeepCopy(values);
     vtkSortDataArray::Sort(sorted);
     mu = sorted->GetComponent(sorted->GetNumberOfTuples() / 2, 0);
@@ -434,7 +494,7 @@ ResampleAtInitialPoints(vtkSmartPointer<vtkPointSet> input, vtkSmartPointer<vtkP
   }
 
   vtkSmartPointer<vtkPointSet> initial;
-  initial = vtkSmartPointer<vtkPointSet>::NewInstance(output);
+  initial.TakeReference(output->NewInstance());
   initial->ShallowCopy(output);
   initial->SetPoints(initial_points);
 
@@ -466,7 +526,7 @@ ResampleAtInitialPoints(vtkSmartPointer<vtkPointSet> input, vtkSmartPointer<vtkP
   delete[] weights;
 
   vtkSmartPointer<vtkPointSet> resampled;
-  resampled = vtkSmartPointer<vtkPointSet>::NewInstance(input);
+  resampled.TakeReference(input->NewInstance());
   resampled->ShallowCopy(input);
   resampled->SetPoints(resampled_points);
   return resampled;
@@ -477,103 +537,141 @@ ResampleAtInitialPoints(vtkSmartPointer<vtkPointSet> input, vtkSmartPointer<vtkP
 // =============================================================================
 
 // -----------------------------------------------------------------------------
+/// Helper macro to parse multiple parameter arguments
+#define PARSE_ARGUMENTS(T, name) \
+  do { \
+    T value; \
+    PARSE_ARGUMENT(value); \
+    (name).push_back(value); \
+  } while (HAS_ARGUMENT); \
+  nlevels = max(nlevels, static_cast<int>((name).size()))
+
+// -----------------------------------------------------------------------------
 int main(int argc, char *argv[])
 {
+  FileOption output_fopt = FO_Default;
+
   verbose = 1; // default verbosity level
   EXPECTS_POSARGS(2);
 
   // Initialize libraries / object factories
+  InitializeIOLibrary();
   InitializeNumericsLibrary();
-  InitializeImageIOLibrary();
-  InitializeTransformationLibrary();
   InitializeDeformableLibrary();
+  InitializeTransformationLibrary();
 
   // Deformable surface model and default optimizer
-  unique_ptr<Transformation> dof;
-  DeformableSurfaceModel     model;
-  DeformableSurfaceLogger    logger;
-  DeformableSurfaceDebugger  debugger(&model);
-  unique_ptr<LocalOptimizer> optimizer(new EulerMethod(&model));
-  ParameterList              params;
+  UniquePtr<Transformation> dof;
+  DeformableSurfaceModel    model;
+  DeformableSurfaceLogger   logger;
+  DeformableSurfaceDebugger debugger(&model);
+  UniquePtr<LocalOptimizer> optimizer(new EulerMethod(&model));
+  ParameterList             params;
 
   // Read input point set
-  vtkSmartPointer<vtkPointSet> input = ReadPointSet(POSARG(1), NULL, true);
+  vtkSmartPointer<vtkPointSet> input = ReadPointSet(POSARG(1), output_fopt);
   vtkPointData * const inputPD = input->GetPointData();
   vtkCellData  * const inputCD = input->GetCellData();
   ImageAttributes domain = PointSetDomain(input);
   model.Input(input);
 
   // External forces (inactive if weight == 0)
-  BalloonForce               balloon ("Balloon force", .0);
-  ImageEdgeForce             edges   ("Edge force",    .0);
-  ImplicitSurfaceDistance    distance("Distance",      .0);
-  ImplicitSurfaceSpringForce dspring ("Dist. spring",  .0);
+  BalloonForce            balloon ("Balloon force", .0);
+  ImageEdgeForce          edges   ("Edge force",    .0);
+  ImageEdgeDistance       dedges  ("Edge distance", .0);
+  ImplicitSurfaceDistance distance("Distance",      .0);
 
   // Internal forces (inactive if weight == 0)
   SpringForce                   spring    ("Bending",        .0);
   InflationForce                normspring("Bending",        .0);
   InflationForce                inflation ("Inflation",      .0);
   CurvatureConstraint           curvature ("Curvature",      .0);
-  QuadraticCurvatureConstraint  qcurvature("QCurvature",     .0);
+  GaussCurvatureConstraint      gcurvature("Gauss curv.",    .0);
+  MeanCurvatureConstraint       mcurvature("Mean curv.",     .0);
+  QuadraticCurvatureConstraint  qcurvature("Quad. curv.",    .0);
   MetricDistortion              distortion("Distortion",     .0);
   StretchingForce               stretching("Stretching",     .0);
   RepulsiveForce                repulsion ("Repulsion",      .0);
   NonSelfIntersectionConstraint collision ("Collision",      .0);
   SmoothnessConstraint          dofbending("Bending energy", .0);
 
+  // Internal forces proportional to implicit surface distance
+  QuadraticCurvatureConstraint dqcurvature("Dist. quad. curv.", .0);
+  MeanCurvatureConstraint      dmcurvature("Dist. mean curv.",  .0);
+  GaussCurvatureConstraint     dgcurvature("Dist. Gauss curv.", .0);
+
+  const string dmagnitude = distance.Name() + " magnitude";
+  dqcurvature.ExternalMagnitudeArrayName(dmagnitude);
+  dmcurvature.ExternalMagnitudeArrayName(dmagnitude);
+  dgcurvature.ExternalMagnitudeArrayName(dmagnitude);
+
+  // Default force settings
   spring.NormalWeight(.0);
   spring.TangentialWeight(.0);
 
   repulsion.Radius(.0);
 
   // Stopping criteria (disabled by default)
+  EnergyThreshold            min_energy(&model);
   MinActiveStoppingCriterion min_active(&model);
   InflationStoppingCriterion inflation_error(&model);
 
   min_active.Threshold(.0);
-  inflation_error.Threshold(numeric_limits<double>::quiet_NaN());
+  inflation_error.Threshold(NaN);
 
   // Optional arguments
-  const char *image_name       = NULL;
-  const char *dmap_name        = NULL;
-  double      dmap_offset      = .0;
-  const char *mask_name        = NULL;
-  const char *track_name       = NULL;  // track normal movement of nodes
-  bool        track_zero_mean  = false; // subtract mean from tracked normal movements
-  bool        track_unit_var   = false; // Z-score normalize tracked normal movements
-  bool        track_use_median = false; // use median instead of mean for normalization
-  const char *initial_name     = NULL;
-  const char *debug_prefix     = "deform_mesh_";
-  double      padding          = numeric_limits<double>::quiet_NaN();
-  bool        level_prefix     = true;
-  bool        reset_status     = false;
-  bool        ascii            = false;
-  bool        compress         = true;
-  bool        center_output    = false;
-  bool        match_area       = false;
-  bool        match_sampling   = false;
-  bool        signed_gradient  = false; // average gradient vectors with positive dot product
-  bool        save_status      = false;
-  int         min_level        = 0;
-  int         max_level        = 0;
-  int         nsteps1          = nsteps; // iterations at level 1
-  int         nstepsN          = nsteps; // iterations at level N
-  double      max_step_length           = dt;
-  double      step_length_magnification = 1.0;
-  double      edge_length_magnification = 1.0;
-  bool        inflate_brain  = false; // mimick mris_inflate
+  const char *image_name        = nullptr;
+  const char *balloon_mask_name = nullptr;
+  const char *dmap_name         = nullptr;
+  const char *dmag_name         = nullptr;
+  double      dmap_offset       = .0;
+  const char *mask_name         = nullptr;
+  const char *track_name        = nullptr; // track normal movement of nodes
+  bool        track_zero_mean   = false;   // subtract mean from tracked normal movements
+  bool        track_unit_var    = false;   // Z-score normalize tracked normal movements
+  bool        track_use_median  = false;   // use median instead of mean for normalization
+  const char *initial_name      = nullptr;
+  const char *debug_prefix      = "deform-mesh_";
+  double      padding           = NaN;
+  bool        level_prefix      = true;
+  bool        reset_status      = false;
+  bool        center_output     = false;
+  bool        match_area        = false;
+  bool        match_sampling    = false;
+  bool        signed_gradient   = false; // average gradient vectors with positive dot product
+  bool        average_magnitude = false; // average gradient magnitude only
+  bool        save_status       = false;
+  bool        inflate_brain     = false; // mimick mris_inflate
+  int         nlevels           = 1;     // no. of levels
 
+  Array<int>    navgs;           // no. of total gradient averaging steps
+  Array<int>    distance_navgs;  // no. of distance gradient averaging steps
+  Array<int>    balloon_navgs;   // no. of balloon force gradient averaging steps
+  Array<int>    nsteps;          // maximum no. of integration steps
+  Array<double> max_dt;          // maximum integration step length
+  Array<double> max_dx;          // maximum node displacement at each integration step
+  Array<double> min_edge_length; // minimum average edge length
+  Array<double> max_edge_length; // maximum average edge length
+  Array<double> min_edge_angle;  // minimum angle between edge end points to allow melting
+  Array<double> max_edge_angle;  // maximum angle between edge end points before enforcing subdivision
+
+  bool   barg;
+  int    iarg;
+  double farg;
 
   for (ALL_OPTIONS) {
     // Input
     if (OPTION("-image")) {
       image_name = ARGUMENT;
     }
-    else if (OPTION("-dmap") || OPTION("-distance-map") || OPTION("-implicit-surface")) {
+    else if (OPTION("-dmap") || OPTION("-distance-map") || OPTION("-distance-image") || OPTION("-implicit-surface")) {
       dmap_name = ARGUMENT;
     }
     else if (OPTION("-dmap-offset") || OPTION("-distance-offset") || OPTION("-implicit-surface-offset")) {
-      dmap_offset = atof(ARGUMENT);
+      PARSE_ARGUMENT(dmap_offset);
+    }
+    else if (OPTION("-dmag") || OPTION("-distance-magnitude")) {
+      dmag_name = ARGUMENT;
     }
     else if (OPTION("-mask")) {
       mask_name = ARGUMENT;
@@ -582,24 +680,22 @@ int main(int argc, char *argv[])
       initial_name = ARGUMENT;
     }
     else if (OPTION("-padding")) {
-      const char *arg = ARGUMENT;
-      if (!FromString(arg, padding)) {
-        cerr << "Invalid -padding argument" << endl;
-        exit(1);
-      }
+      PARSE_ARGUMENT(padding);
     }
     // Presets
     else if (OPTION("-inflate-brain")) { // cf. FreeSurfer's mris_inflate
       inflate_brain = true;
-      min_level = 1, max_level = 6;
-      nsteps1 = nstepsN = 10;
+      nlevels = 6;
+      navgs = GradientAveraging(1, 6);
+      nsteps.resize(1);
+      nsteps[0] = 10;
       inflation.Weight(.5);   //  1 / 2 b/c InflationForce   gradient weight incl. factor 2
       distortion.Weight(.05); // .1 / 2 b/c MetricDistortion gradient weight incl. factor 2
       inflation_error.Threshold(.015);
-      max_step_length = .9;
-      step_length_magnification = 1.0;
+      max_dt.resize(1);
+      max_dt[0] = .9;
       model.NeighborhoodRadius(2);
-      unique_ptr<EulerMethodWithMomentum> euler(new EulerMethodWithMomentum());
+      UniquePtr<EulerMethodWithMomentum> euler(new EulerMethodWithMomentum());
       euler->Momentum(.9);
       euler->NormalizeStepLength(false);
       euler->MaximumDisplacement(1.0);
@@ -614,30 +710,21 @@ int main(int argc, char *argv[])
     }
     // Optimization method
     else if (OPTION("-optimizer") || OPTION("-optimiser")) {
-      const char *arg = ARGUMENT;
       OptimizationMethod m;
-      if (!FromString(arg, m)) {
-        cerr << "Unknown optimization method: " << arg << endl;
-        exit(1);
-      }
+      PARSE_ARGUMENT(m);
       optimizer.reset(LocalOptimizer::New(m, &model));
     }
-    else if (OPTION("-linesearch")) {
+    else if (OPTION("-line-search") || OPTION("-linesearch")) {
       Insert(params, "Line search strategy", ARGUMENT);
     }
     else if (OPTION("-dof")) {
       string arg = ARGUMENT;
       double dx = 1.0, dy = 1.0, dz = 1.0;
       if (HAS_ARGUMENT) {
-        if (!FromString(ARGUMENT, dx)) {
-          cerr << "Invalid -dof control point spacing argument" << endl;
-          exit(1);
-        }
+        PARSE_ARGUMENT(dx);
         if (HAS_ARGUMENT) {
-          if (!FromString(ARGUMENT, dy) || !FromString(ARGUMENT, dz)) {
-            cerr << "Invalid -dof control point spacing argument" << endl;
-            exit(1);
-          }
+          PARSE_ARGUMENT(dy);
+          PARSE_ARGUMENT(dz);
         } else {
           dy = dz = dx;
         }
@@ -659,132 +746,363 @@ int main(int argc, char *argv[])
       model.Transformation(dof.get());
     }
     else if (OPTION("-levels")) {
-      const int i = atoi(ARGUMENT);
+      int min_level, max_level;
+      PARSE_ARGUMENT(min_level);
       if (HAS_ARGUMENT) {
-        min_level = i;
-        max_level = atoi(ARGUMENT);
+        PARSE_ARGUMENT(max_level);
       } else {
+        max_level = min_level;
         min_level = 1;
-        max_level = i;
       }
       if (min_level < 1 || max_level < 1) {
-        cerr << "Error: Invalid -levels argument" << endl;
-        exit(1);
+        FatalError("Invalid -levels argument");
       }
+      navgs   = GradientAveraging(min_level, max_level);
+      nlevels = max(nlevels, static_cast<int>(navgs.size()));
     }
-    else if (OPTION("-steps") || OPTION("-iterations")) {
-      nstepsN = atoi(ARGUMENT);
-      if (HAS_ARGUMENT) nsteps1 = atoi(ARGUMENT);
-      else              nsteps1 = nstepsN;
+    else if (OPTION("-force-averaging")) {
+      PARSE_ARGUMENTS(int, navgs);
+      average_magnitude = false;
+    }
+    else if (OPTION("-magnitude-averaging")) {
+      PARSE_ARGUMENTS(int, navgs);
+      average_magnitude = true;
+    }
+    else if (OPTION("-max-steps")      || OPTION("-steps")      ||
+             OPTION("-max-iterations") || OPTION("-iterations") ||
+             OPTION("-max-iter")       || OPTION("-iter")) {
+      PARSE_ARGUMENTS(int, nsteps);
     }
     else if (OPTION("-step") || OPTION("-dt") || OPTION("-h")) {
-      max_step_length = atof(ARGUMENT);
+      PARSE_ARGUMENTS(double, max_dt);
     }
-    else if (OPTION("-step-magnification")) {
-      step_length_magnification = atof(ARGUMENT);
+    else if (OPTION("-max-dx") || OPTION("-maxdx") || OPTION("-maxd") || OPTION("-dx") || OPTION("-d")) {
+      PARSE_ARGUMENTS(double, max_dx);
     }
-    else if (OPTION("-maxdx") || OPTION("-maxd") || OPTION("-dx") || OPTION("-d")) {
-      Insert(params, "Normalize length of steps", false);
-      Insert(params, "Maximum node displacement", ARGUMENT);
+    else if (OPTION("-normalize-forces") || OPTION("-normalise-forces")) {
+      Insert(params, "Normalize gradient vectors", true);
     }
     else if (OPTION("-damping"))   Insert(params, "Deformable surface damping", ARGUMENT);
     else if (OPTION("-momentum"))  Insert(params, "Deformable surface momentum", ARGUMENT);
     else if (OPTION("-mass"))      Insert(params, "Deformable surface mass", ARGUMENT);
     else if (OPTION("-epsilon"))   Insert(params, "Epsilon", ARGUMENT);
     else if (OPTION("-delta"))     Insert(params, "Delta", ARGUMENT);
-    else if (OPTION("-minenergy")) Insert(params, "Target energy function value", ARGUMENT);
-    else if (OPTION("-minactive")) min_active.Threshold(atof(ARGUMENT));
-    else if (OPTION("-extrinsic-energy")) {
-      model.MinimizeExtrinsicEnergy(true);
+    else if (OPTION("-min-energy") || OPTION("-minenergy")) {
+      PARSE_ARGUMENT(min_energy.Threshold());
     }
-    else if (OPTION("-reset-status")) reset_status = true;
+    else if (OPTION("-min-active") || OPTION("-minactive")) {
+      string value, units = ValueUnits(ARGUMENT, &value);
+      if (!FromString(value, farg)) {
+        FatalError("Invalid -min-active value: " << value);
+      }
+      if (units == "%") {
+        farg /= 100.;
+      } else if (!units.empty()) {
+        FatalError("Invalid -min-active units: " << units);
+      }
+      min_active.Threshold(farg);
+    }
+    else if (OPTION("-extrinsic-energy")) {
+      if (HAS_ARGUMENT) PARSE_ARGUMENT(barg);
+      else barg = true;
+      model.MinimizeExtrinsicEnergy(barg);
+    }
+    else if (OPTION("-reset-status")) {
+      if (HAS_ARGUMENT) PARSE_ARGUMENT(reset_status);
+      else reset_status = true;
+    }
+    else if (OPTION("-noreset-status")) {
+      reset_status = false;
+    }
     // Force terms
     else if (OPTION("-neighborhood") || OPTION("-neighbourhood")) {
       model.NeighborhoodRadius(atoi(ARGUMENT));
     }
     else if (OPTION("-distance")) {
-      distance.Weight(atof(ARGUMENT));
+      PARSE_ARGUMENT(farg);
+      distance.Weight(farg);
       signed_gradient = true;
     }
+    else if (OPTION("-distance-averaging")) {
+      PARSE_ARGUMENTS(int, distance_navgs);
+    }
     else if (OPTION("-distance-measure")) {
-      ImplicitSurfaceDistance::DistanceMeasureType measure;
-      PARSE_ARGUMENT(measure);
-      distance.DistanceMeasure(measure);
+      PARSE_ARGUMENT(distance.DistanceMeasure());
     }
     else if (OPTION("-balloon-inflation") || OPTION("-balloon")) {
-      balloon.Weight(atof(ARGUMENT));
+      PARSE_ARGUMENT(farg);
+      balloon.Weight(farg);
       balloon.DeflateSurface(false);
     }
     else if (OPTION("-balloon-deflation")) {
-      balloon.Weight(atof(ARGUMENT));
+      PARSE_ARGUMENT(farg);
+      balloon.Weight(farg);
       balloon.DeflateSurface(true);
     }
+    else if (OPTION("-balloon-min")) {
+      PARSE_ARGUMENT(farg);
+      balloon.LowerIntensity(farg);
+    }
+    else if (OPTION("-balloon-max")) {
+      PARSE_ARGUMENT(farg);
+      balloon.UpperIntensity(farg);
+    }
+    else if (OPTION("-balloon-range")) {
+      PARSE_ARGUMENT(farg);
+      balloon.LowerIntensity(farg);
+      PARSE_ARGUMENT(farg);
+      balloon.UpperIntensity(farg);
+    }
+    else if (OPTION("-balloon-radius")) {
+      PARSE_ARGUMENT(farg);
+      balloon.Radius(farg);
+    }
+    else if (OPTION("-balloon-sigma")) {
+      PARSE_ARGUMENT(farg);
+      balloon.LowerIntensitySigma(farg);
+      balloon.UpperIntensitySigma(farg);
+    }
+    else if (OPTION("-balloon-lower-sigma")) {
+      PARSE_ARGUMENT(farg);
+      balloon.LowerIntensitySigma(farg);
+    }
+    else if (OPTION("-balloon-upper-sigma")) {
+      PARSE_ARGUMENT(farg);
+      balloon.UpperIntensitySigma(farg);
+    }
+    else if (OPTION("-balloon-averaging")) {
+      PARSE_ARGUMENTS(int, balloon_navgs);
+    }
+    else if (OPTION("-balloon-mask")) {
+      balloon_mask_name = ARGUMENT;
+    }
     else if (OPTION("-edges")) {
-      edges.Weight(atof(ARGUMENT));
+      PARSE_ARGUMENT(farg);
+      edges.Weight(farg);
+    }
+    else if (OPTION("-edge-distance")) {
+      PARSE_ARGUMENT(farg);
+      dedges.Weight(farg);
+    }
+    else if (OPTION("-edge-distance-type")) {
+      PARSE_ARGUMENT(dedges.EdgeType());
+    }
+    else if (OPTION("-edge-distance-threshold")) {
+      PARSE_ARGUMENT(dedges.MinIntensity());
+    }
+    else if (OPTION("-edge-distance-maximum")) {
+      PARSE_ARGUMENT(dedges.MaxDistance());
+    }
+    else if (OPTION("-edge-distance-median")) {
+      PARSE_ARGUMENT(dedges.MedianFilterRadius());
+    }
+    else if (OPTION("-edge-distance-smoothing")) {
+      PARSE_ARGUMENT(dedges.DistanceSmoothing());
     }
     else if (OPTION("-inflation")) {
+      PARSE_ARGUMENT(farg);
       inflation.Name("Inflation");
-      inflation.Weight(atof(ARGUMENT));
+      inflation.Weight(farg);
     }
     else if (OPTION("-bending-energy")) {
-      dofbending.Weight(atof(ARGUMENT));
+      PARSE_ARGUMENT(farg);
+      dofbending.Weight(farg);
     }
 		else if (OPTION("-spring") || OPTION("-bending")) {
-      spring.Weight(atof(ARGUMENT));
+      PARSE_ARGUMENT(farg);
+      spring.Weight(farg);
     }
     else if (OPTION("-normal-spring") || OPTION("-nspring")) {
-      spring.NormalWeight(atof(ARGUMENT));
+      PARSE_ARGUMENT(farg);
+      spring.NormalWeight(farg);
     }
     else if (OPTION("-tangential-spring") || OPTION("-tspring")) {
-      spring.TangentialWeight(atof(ARGUMENT));
+      PARSE_ARGUMENT(farg);
+      spring.TangentialWeight(farg);
     }
     else if (OPTION("-normalized-spring")) {
-      normspring.Weight(atof(ARGUMENT));
-    }
-    else if (OPTION("-distance-spring") || OPTION("-dspring")) {
-      dspring.Weight(atof(ARGUMENT));
+      PARSE_ARGUMENT(farg);
+      normspring.Weight(farg);
     }
     else if (OPTION("-curvature")) {
-      curvature.Weight(atof(ARGUMENT));
-      curvature.Sigma(HAS_ARGUMENT ? atof(ARGUMENT) : .0);
+      PARSE_ARGUMENT(farg);
+      curvature.Weight(farg);
+    }
+    else if (OPTION("-gauss-curvature") || OPTION("-gaussian-curvature") || OPTION("-gcurvature")) {
+      PARSE_ARGUMENT(farg);
+      gcurvature.Weight(farg);
+    }
+    else if (OPTION("-distant-gauss-curvature") || OPTION("-distant-gaussian-curvature") || OPTION("-distant-gcurvature")) {
+      PARSE_ARGUMENT(farg);
+      dgcurvature.Weight(farg);
+      if (HAS_ARGUMENT) {
+        PARSE_ARGUMENT(farg);
+        const double winside = dgcurvature.Weight();
+        dgcurvature.Weight(max(winside, farg));
+        if (dgcurvature.Weight() != 0.) {
+          dgcurvature.WeightInside (winside / dgcurvature.Weight());
+          dgcurvature.WeightOutside(farg    / dgcurvature.Weight());
+        }
+      } else {
+        dgcurvature.WeightInside (1.);
+        dgcurvature.WeightOutside(1.);
+      }
+    }
+    else if (OPTION("-mean-curvature") || OPTION("-mcurvature")) {
+      PARSE_ARGUMENT(farg);
+      mcurvature.Weight(farg);
+    }
+    else if (OPTION("-distant-mean-curvature") || OPTION("-distant-mcurvature")) {
+      PARSE_ARGUMENT(farg);
+      dmcurvature.Weight(farg);
+      if (HAS_ARGUMENT) {
+        PARSE_ARGUMENT(farg);
+        const double winside = dmcurvature.Weight();
+        dmcurvature.Weight(max(winside, farg));
+        if (dmcurvature.Weight() != 0.) {
+          dmcurvature.WeightInside (winside / dmcurvature.Weight());
+          dmcurvature.WeightOutside(farg    / dmcurvature.Weight());
+        }
+      } else {
+        dmcurvature.WeightInside (1.);
+        dmcurvature.WeightOutside(1.);
+      }
     }
     else if (OPTION("-quadratic-curvature") || OPTION("-qcurvature")) {
-      qcurvature.Weight(atof(ARGUMENT));
+      PARSE_ARGUMENT(farg);
+      qcurvature.Weight(farg);
+    }
+    else if (OPTION("-distant-quadratic-curvature") || OPTION("-distant-qcurvature")) {
+      PARSE_ARGUMENT(farg);
+      dqcurvature.Weight(farg);
+      if (HAS_ARGUMENT) {
+        PARSE_ARGUMENT(farg);
+        const double winside = dqcurvature.Weight();
+        dqcurvature.Weight(max(winside, farg));
+        if (dqcurvature.Weight() != 0.) {
+          dqcurvature.WeightInside (winside / dqcurvature.Weight());
+          dqcurvature.WeightOutside(farg    / dqcurvature.Weight());
+        }
+      } else {
+        dqcurvature.WeightInside (1.);
+        dqcurvature.WeightOutside(1.);
+      }
     }
     else if (OPTION("-distortion")) {
-      distortion.Weight(atof(ARGUMENT));
+      PARSE_ARGUMENT(farg);
+      distortion.Weight(farg);
     }
     else if (OPTION("-stretching")) {
-      stretching.Weight(atof(ARGUMENT));
-      stretching.RestLength(HAS_ARGUMENT ? atof(ARGUMENT) : -1.0);
+      PARSE_ARGUMENT(farg);
+      stretching.Weight(farg);
+    }
+    else if (OPTION("-stretching-rest-length")) {
+      const char *arg = ARGUMENT;
+      if (strcmp(arg, "avg") == 0) {
+        stretching.RestLength(-1.);
+        stretching.UseCurrentAverageLength(false);
+      } else if (strcmp(arg, "curavg") == 0) {
+        stretching.RestLength(-1.);
+        stretching.UseCurrentAverageLength(true);
+      } else if (FromString(arg, farg)) {
+        stretching.RestLength(farg);
+        stretching.UseCurrentAverageLength(false);
+      } else {
+        FatalError("Invalid -stretching-rest-length argument: " << arg);
+      }
     }
     else if (OPTION("-repulsion")) {
-      repulsion.Weight(atof(ARGUMENT));
-      repulsion.Radius(HAS_ARGUMENT ? atof(ARGUMENT) : 0);
+      PARSE_ARGUMENT(farg);
+      repulsion.Weight(farg);
+      if (HAS_ARGUMENT) {
+        PARSE_ARGUMENT(farg);
+        repulsion.Radius(farg);
+        if (HAS_ARGUMENT) {
+          PARSE_ARGUMENT(farg);
+          repulsion.Magnitude(farg);
+        } else {
+          repulsion.Magnitude(10.);
+        }
+      }
+      else repulsion.Radius(-1.);
     }
-    else if (OPTION("-collision")) collision.Weight(atof(ARGUMENT));
+    else if (OPTION("-collision")) {
+      PARSE_ARGUMENT(farg);
+      collision.Weight(farg);
+    }
     // Stopping criteria
     else if (OPTION("-inflation-error")) {
-      inflation_error.Threshold(atof(ARGUMENT));
+      PARSE_ARGUMENT(farg);
+      inflation_error.Threshold(farg);
     }
     // Iterative local remeshing
-    else if (OPTION("-remesh")) model.RemeshInterval(atoi(ARGUMENT));
-    else if (OPTION("-remesh-adaptively")) model.RemeshAdaptively(true);
-    else if (OPTION("-minedgelength")) model.MinEdgeLength(atof(ARGUMENT));
-    else if (OPTION("-maxedgelength")) model.MaxEdgeLength(atof(ARGUMENT));
-    else if (OPTION("-edgelength-magnification")) {
-      edge_length_magnification = atof(ARGUMENT);
+    else if (OPTION("-remesh")) {
+      PARSE_ARGUMENT(iarg);
+      model.RemeshInterval(iarg);
     }
-    else if (OPTION("-minangle")) model.MinFeatureAngle(atof(ARGUMENT));
-    else if (OPTION("-maxangle")) model.MaxFeatureAngle(atof(ARGUMENT));
+    else if (OPTION("-remesh-adaptively")) {
+      model.RemeshAdaptively(true);
+    }
+    else if (OPTION("-min-edge-length") || OPTION("-min-edgelength") || OPTION("-minedgelength")) {
+      PARSE_ARGUMENTS(double, min_edge_length);
+    }
+    else if (OPTION("-max-edge-length") || OPTION("-max-edgelength") || OPTION("-maxedgelength")) {
+      PARSE_ARGUMENTS(double, max_edge_length);
+    }
+    else if (OPTION("-min-angle") || OPTION("-minangle")) {
+      PARSE_ARGUMENTS(double, min_edge_angle);
+    }
+    else if (OPTION("-max-angle") || OPTION("-maxangle")) {
+      PARSE_ARGUMENTS(double, max_edge_angle);
+    }
+    else if (OPTION("-triangle-inversion")) {
+      model.AllowTriangleInversion(true);
+    }
+    else if (OPTION("-notriangle-inversion")) {
+      model.AllowTriangleInversion(false);
+    }
     // Iterative low-pass filtering
-    else if (OPTION("-lowpass"))            model.LowPassInterval(atoi(ARGUMENT));
-    else if (OPTION("-lowpass-iterations")) model.LowPassIterations(atoi(ARGUMENT));
-    else if (OPTION("-lowpass-band"))       model.LowPassBand(atof(ARGUMENT));
+    else if (OPTION("-lowpass")) {
+      PARSE_ARGUMENT(iarg);
+      model.LowPassInterval(iarg);
+    }
+    else if (OPTION("-lowpass-iterations")) {
+      PARSE_ARGUMENT(iarg);
+      model.LowPassIterations(iarg);
+    }
+    else if (OPTION("-lowpass-band")) {
+      PARSE_ARGUMENT(farg);
+      model.LowPassBand(farg);
+    }
     // Non-self-intersection / collision detection
-    else if (OPTION("-nointersection")) model.HardNonSelfIntersection(true);
-    else if (OPTION("-mindistance") || OPTION("-mind")) model.MinFrontfaceDistance(atof(ARGUMENT));
-    else if (OPTION("-minwidth")    || OPTION("-minw")) model.MinBackfaceDistance (atof(ARGUMENT));
+    else if (OPTION("-non-self-intersection")) {
+      if (HAS_ARGUMENT) PARSE_ARGUMENT(barg);
+      else barg = true;
+      model.HardNonSelfIntersection(barg);
+    }
+    else if (OPTION("-nointersection")) {
+      model.HardNonSelfIntersection(true);
+    }
+    else if (OPTION("-min-distance") || OPTION("-mindistance") || OPTION("-mind")) {
+      PARSE_ARGUMENT(farg);
+      model.MinFrontfaceDistance(farg);
+    }
+    else if (OPTION("-min-width") || OPTION("-minwidth") || OPTION("-minw")) {
+      PARSE_ARGUMENT(farg);
+      model.MinBackfaceDistance(farg);
+    }
+    else if (OPTION("-max-collision-angle")) {
+      PARSE_ARGUMENT(farg);
+      model.MaxCollisionAngle(farg);
+    }
+    else if (OPTION("-fast-collision-test")) {
+      if (HAS_ARGUMENT) PARSE_ARGUMENT(barg);
+      else barg = true;
+      model.FastCollisionTest(barg);
+    }
+    else if (OPTION("-nofast-collision-test")) {
+      model.FastCollisionTest(false);
+    }
     // Output format
     else if (OPTION("-center-output"))  center_output  = true;
     else if (OPTION("-match-area"))     match_area     = true;
@@ -833,21 +1151,28 @@ int main(int argc, char *argv[])
     else if (OPTION("-track-without-momentum")) {
       Insert(params, "Exclude momentum from tracked normal displacement", true);
     }
-    else if (OPTION("-save-status"))    save_status    = true;
-    else if (OPTION("-ascii" ) || OPTION("-nobinary")) ascii = true;
-    else if (OPTION("-binary") || OPTION("-noascii" )) ascii = false;
-    else if (OPTION("-compress"))   compress = true;
-    else if (OPTION("-nocompress")) compress = false;
-    else if (OPTION("-levelprefix")) level_prefix = true;
-    else if (OPTION("-nolevelprefix")) level_prefix = false;
+    else if (OPTION("-save-status")) save_status = true;
+    else if (OPTION("-level-prefix") || OPTION("-levelprefix")) {
+      if (HAS_ARGUMENT) PARSE_ARGUMENT(level_prefix);
+      else level_prefix = true;
+    }
+    else if (OPTION("-nolevel-prefix") || OPTION("-nolevelprefix")) {
+      level_prefix = false;
+    }
     // Debugging and other common/advanced options
     else if (OPTION("-par")) {
       const char *name  = ARGUMENT;
       const char *value = ARGUMENT;
       Insert(params, name, value);
     }
-    else if (OPTION("-debugprefix")) debug_prefix = ARGUMENT;
-    else if (OPTION("-debuginterval")) debugger.Interval(atoi(ARGUMENT));
+    else if (OPTION("-debug-prefix") || OPTION("-debugprefix")) {
+      debug_prefix = ARGUMENT;
+    }
+    else if (OPTION("-debug-interval") || OPTION("-debuginterval")) {
+      PARSE_ARGUMENT(iarg);
+      debugger.Interval(iarg);
+    }
+    else HANDLE_POINTSETIO_OPTION(output_fopt);
     else HANDLE_COMMON_OR_UNKNOWN_OPTION();
   }
 
@@ -862,19 +1187,11 @@ int main(int argc, char *argv[])
     spring.Weight(.0);
   }
   if ((balloon.Weight() || edges.Weight()) && !image_name) {
-    cerr << "Input -image required by external forces!" << endl;
-    exit(1);
+    FatalError("Input -image required by external forces!");
   }
-  if ((distance.Weight() || dspring.Weight()) && !dmap_name) {
-    cerr << "Input -dmap required by implicit surface forces!" << endl;
-    exit(1);
+  if ((distance.Weight() || dmcurvature.Weight() || dgcurvature.Weight() || dqcurvature.Weight()) && !dmap_name) {
+    FatalError("Input -distance-map required by distance weighted internal forces!");
   }
-
-  Insert(params, "Maximum length of steps", max_step_length);
-  const double repulsion_radius  = repulsion.Radius();
-  const double distortion_weight = distortion.Weight();
-  const double min_edge_length   = model.MinEdgeLength();
-  const double max_edge_length   = model.MaxEdgeLength();
 
   // Read input image
   RealImage input_image;
@@ -890,7 +1207,7 @@ int main(int argc, char *argv[])
     model.Image(&image);
   }
 
-  // Read input distance map
+  // Read implicit surface distance map
   RealImage input_dmap;
   RegisteredImage dmap;
   if (dmap_name) {
@@ -903,23 +1220,52 @@ int main(int argc, char *argv[])
     model.ImplicitSurface(&dmap);
   }
 
+  // Read implicit surface distance force magnitude map
+  RealImage input_dmag;
+  RegisteredImage dmag;
+  if (dmag_name) {
+    input_dmag.Read(dmag_name);
+    dmag.InputImage(&input_dmag);
+    dmag.Initialize(input_dmag.Attributes());
+    dmag.Update(true, false, false, true);
+    dmag.SelfUpdate(false);
+    distance.MagnitudeImage(&dmag);
+    distance.InvertMagnitude(false);
+    distance.NormalizeMagnitude(false);
+  }
+
+  // Read foreground mask of balloon force
+  BinaryImage balloon_mask;
+  if (balloon_mask_name) {
+    balloon_mask.Read(balloon_mask_name);
+    balloon.ForegroundMask(&balloon_mask);
+  }
+
   // Add energy terms
-  model.Add(&distance,   false);
-  model.Add(&balloon,    false);
-  model.Add(&edges,      false);
-  model.Add(&dspring,    false);
-  model.Add(&spring,     false);
-  model.Add(&normspring, false);
-  model.Add(&inflation,  false);
-  model.Add(&curvature,  false);
-  model.Add(&qcurvature, false);
-  model.Add(&distortion, false);
-  model.Add(&stretching, false);
-  model.Add(&repulsion,  false);
-  model.Add(&collision,  false);
-  model.Add(&dofbending, false);
+  model.Add(&distance,    false);
+  model.Add(&balloon,     false);
+  model.Add(&edges,       false);
+  model.Add(&dedges,      false);
+  model.Add(&spring,      false);
+  model.Add(&normspring,  false);
+  model.Add(&inflation,   false);
+  model.Add(&curvature,   false);
+  model.Add(&gcurvature,  false);
+  model.Add(&dgcurvature, false);
+  model.Add(&mcurvature,  false);
+  model.Add(&dmcurvature, false);
+  model.Add(&qcurvature,  false);
+  model.Add(&dqcurvature, false);
+  model.Add(&distortion,  false);
+  model.Add(&stretching,  false);
+  model.Add(&repulsion,   false);
+  model.Add(&collision,   false);
+  model.Add(&dofbending,  false);
 
   // Add stopping criteria
+  if (min_energy.Threshold() > .0) {
+    optimizer->AddStoppingCriterion(&min_energy);
+  }
   if (min_active.Threshold() >= .0) {
     // Can be disabled with -minactive -1, otherwise, even when the stopping
     // criterion will never be fulfilled, it is needed to label nodes as passive
@@ -934,7 +1280,7 @@ int main(int argc, char *argv[])
   for (ParameterConstIterator it = params.begin(); it != params.end(); ++it) {
     if (!model     .Set(it->first.c_str(), it->second.c_str()) &&
         !optimizer->Set(it->first.c_str(), it->second.c_str())) {
-      cerr << "Unused/invalid parameter: " << it->first << " = " << it->second << endl;
+      Warning("Unused/invalid parameter: " << it->first << " = " << it->second);
       ok = false;
     }
   }
@@ -951,11 +1297,12 @@ int main(int argc, char *argv[])
   }
 
   // Initialize deformable surface model
-  if (repulsion_radius == .0) repulsion.Radius(1.0);
+  const double repulsion_radius = repulsion.Radius();
+  if (repulsion_radius == 0.) repulsion.Radius(1.);
 
   model.GradientAveraging(0);
   model.AverageSignedGradients(signed_gradient);
-  model.AverageGradientMagnitude(true);
+  model.AverageGradientMagnitude(average_magnitude);
   model.Initialize();
 
   vtkPointSet  *output   = model.Output();
@@ -971,13 +1318,11 @@ int main(int argc, char *argv[])
   // of the output by those of the previous output mesh (-initial argument).
   if (initial_name) {
     if (model.Transformation()) {
-      cerr << "Error: Option -initial not allowed when optimizing a parametric deformation!" << endl;
-      exit(1);
+      FatalError("Option -initial not allowed when optimizing a parametric deformation!");
     }
     vtkSmartPointer<vtkPointSet> initial = ReadPointSet(initial_name);
     if (initial->GetNumberOfPoints() != output->GetNumberOfPoints()) {
-      cerr << "Error: Point set with initial deformed mesh points has differing number of points" << endl;
-      exit(1);
+      FatalError("Point set with initial deformed mesh points has differing number of points");
     }
     output->GetPoints()->DeepCopy(initial->GetPoints());
   }
@@ -1025,9 +1370,8 @@ int main(int argc, char *argv[])
   // (i.e., sulcal depth measure in case of surface -inflation)
   if (track_name) {
     if (euler == NULL || model.Transformation() != NULL || !IsSurfaceMesh(output)) {
-      cerr << "Error: Option -track can currently only be used with an Euler method as -optimizer to" << endl;
-      cerr << "       directly deform a surface mesh without a parametric transformation (no input -dof)." << endl;
-      exit(1);
+      FatalError("Option -track can currently only be used with an Euler method as -optimizer to\n"
+          "       directly deform a surface mesh without a parametric transformation (no input -dof).");
     }
     vtkSmartPointer<vtkDataArray> track_array;
     track_array = outputPD->GetArray(track_name);
@@ -1044,6 +1388,8 @@ int main(int argc, char *argv[])
 
   // Deform surface until either local minimum of energy function is reached
   // or the internal and external forces of the model are in equilibrium
+  const double distortion_weight = distortion.Weight();
+
   if (verbose) {
     cout << endl;
     logger.Verbosity(verbose - 1);
@@ -1054,52 +1400,70 @@ int main(int argc, char *argv[])
     optimizer->AddObserver(debugger);
   }
 
-  for (int level = max_level; level >= min_level; --level) {
-    // Number of gradient averaging iterations
-    const int navgs = (level > 1 ? static_cast<int>(pow(2, level - 2)) : 0);
-    // Set number of iterations and length of each step
-    double step_length = max_step_length;
-    if (level > 1) {
-      step_length *= pow(step_length_magnification, level - 1);
+  for (int level = 0; level < nlevels; ++level) {
+
+    // Set number of integration steps and length of each step
+    const auto dt = ParameterValue(level, nlevels, max_dt, 1.);
+    optimizer->Set("Maximum length of steps", ToString(dt).c_str());
+    optimizer->NumberOfSteps(ParameterValue(level, nlevels, nsteps, 100));
+
+    // Set maximum node displacement at each step
+    if (!max_dx.empty()) {
+      const auto dx = ParameterValue(level, nlevels, max_dx, 0.);
+      optimizer->Set("Normalize length of steps", "No");
+      optimizer->Set("Maximum node displacement", ToString(dx).c_str());
     }
-    optimizer->Set("Maximum length of steps", ToString(step_length).c_str());
-    optimizer->NumberOfSteps(level > min_level ? nstepsN : nsteps1);
-    // Set edge length range
-    model.MinEdgeLength(min_edge_length * pow(edge_length_magnification, level - 1));
-    model.MaxEdgeLength(max_edge_length * pow(edge_length_magnification, level - 1));
-    if (repulsion_radius == .0) {
-      const double r = model.MinEdgeLength() + .5 * (model.MaxEdgeLength() - model.MinEdgeLength());
+
+    // Set parameters of iterative remeshing step
+    model.MinEdgeLength  (ParameterValue(level, nlevels, min_edge_length, 0.));
+    model.MaxEdgeLength  (ParameterValue(level, nlevels, max_edge_length, inf));
+    model.MinFeatureAngle(ParameterValue(level, nlevels, min_edge_angle,  180.));
+    model.MaxFeatureAngle(ParameterValue(level, nlevels, max_edge_angle,  180.));
+
+    // Set radius of repulsion force based on average edge length range
+    if (repulsion_radius == 0.) {
+      const auto r = model.MinEdgeLength() + .5 * (model.MaxEdgeLength() - model.MinEdgeLength());
       repulsion.Radius(r);
     }
+
     // Set number of gradient averaging iterations and adjust metric distortion
     // weight for current level (cf. FreeSurfer's MRISinflateBrain function)
+    const auto navg = ParameterValue(level, nlevels, navgs, 0);
     if (inflate_brain) {
-      distortion.Weight(distortion_weight * sqrt(double(navgs)));
-      distortion.GradientAveraging(navgs);
+      distortion.Weight(distortion_weight * sqrt(double(navg)));
+      distortion.GradientAveraging(navg);
     } else {
-      model.GradientAveraging(navgs);
+      model.GradientAveraging(navg);
+      distance.GradientAveraging(ParameterValue(level, nlevels, distance_navgs, 0));
+      balloon .GradientAveraging(ParameterValue(level, nlevels, balloon_navgs,  0));
     }
+
     // Reset node status
     if (reset_status) {
       vtkDataArray *status = model.Output()->GetPointData()->GetArray("Status");
       if (status) status->FillComponent(0, 1.0);
     }
+
     // Initialize optimizer
     optimizer->Initialize();
+
     // Debug/log output
     if (verbose) {
-      cout << "Level " << level << "\n";
+      cout << "Level " << (level + 1) << " out of " << nlevels << "\n";
     }
     if (verbose > 1) {
       cout << "\n";
-      if (inflate_brain) {
-        PrintParameter(cout, "Distortion weight", distortion.Weight());
-      }
-      PrintParameter(cout, "No. of gradient averaging iterations", navgs);
-      PrintParameter(cout, "Maximum length of steps", step_length);
+      PrintParameter(cout, "Maximum no. of steps", optimizer->NumberOfSteps());
+      PrintParameter(cout, "Maximum length of steps", dt);
+      PrintParameter(cout, "No. of gradient averaging steps", navg);
       if (model.RemeshInterval() > 0) {
         PrintParameter(cout, "Minimum edge length", model.MinEdgeLength());
         PrintParameter(cout, "Maximum edge length", model.MaxEdgeLength());
+        PrintParameter(cout, "Minimum edge angle",  model.MinFeatureAngle());
+        PrintParameter(cout, "Maximum edge angle",  model.MaxFeatureAngle());
+      }
+      if (inflate_brain) {
+        PrintParameter(cout, "Distortion weight", distortion.Weight());
       }
       if (repulsion.Weight()) {
         PrintParameter(cout, "Repulsion radius", repulsion.Radius());
@@ -1108,10 +1472,11 @@ int main(int argc, char *argv[])
     cout << endl;
     if (level_prefix) {
       char prefix[64];
-      snprintf(prefix, 64, "%slevel_%d_", debug_prefix, level);
+      snprintf(prefix, 64, "%slevel_%d_", debug_prefix, level + 1);
       debugger.Prefix(prefix);
       debugger.Iteration(0);
     }
+
     // Perform optimization at current level
     optimizer->Run();
     if (verbose) cout << endl;
@@ -1120,6 +1485,7 @@ int main(int argc, char *argv[])
   optimizer->ClearObservers();
 
   // Remove stopping criteria to avoid their deletion by the optimizer
+  optimizer->RemoveStoppingCriterion(&min_energy);
   optimizer->RemoveStoppingCriterion(&min_active);
   optimizer->RemoveStoppingCriterion(&inflation_error);
 
@@ -1170,5 +1536,9 @@ int main(int argc, char *argv[])
   if (match_area) Scale(output, sqrt(Area(input) / Area(output)));
 
   // Write deformed output surface
-  return WritePointSet(POSARG(2), output, compress, ascii) ? 0 : 1;
+  if (!WritePointSet(POSARG(2), output, output_fopt)) {
+    FatalError("Failed to write output to file " << output);
+  }
+
+  return 0;
 }

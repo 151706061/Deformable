@@ -27,7 +27,7 @@
 # have to be specified here such that the top-level IRTK project can analyze the
 # inter-module dependencies, as well as dependencies on third-party libraries.
 #
-# @sa http://opensource.andreasschuh.com/cmake-basis/standard/modules.html
+# @sa https://cmake-basis.github.io/standard/modules.html
 #
 # @ingroup BasisSettings
 ################################################################################
@@ -43,7 +43,7 @@ basis_project (
   # ----------------------------------------------------------------------------
   # meta-data
   NAME        "Deformable"
-  VERSION     "1.1.0" # version of this module
+  VERSION     "0.0.0" # version of this module
   SOVERSION   "0"     # API yet unstable
   PACKAGE     "MIRTK"
   AUTHORS     "Andreas Schuh"
@@ -56,7 +56,7 @@ basis_project (
   # ----------------------------------------------------------------------------
   # dependencies
   DEPENDS
-    MIRTK{Common,Numerics,Image,Transformation,PointSet}
+    MIRTK{Common,Numerics,Image,Transformation,PointSet,IO}
     "VTK-7|6{
       vtkCommonCore,
       vtkCommonDataModel,
@@ -66,10 +66,8 @@ basis_project (
     }"
     #<dependency>
   OPTIONAL_DEPENDS
-    TBB
+    TBB{tbb}
     #<optional-dependency>
-  TOOLS_DEPENDS
-    MIRTK{ImageIO}
   TEST_DEPENDS
     #<test-dependency>
   OPTIONAL_TEST_DEPENDS

@@ -23,65 +23,70 @@
 ##############################################################################
 
 set(HEADERS
-  mirtkBalloonForce.h
-  mirtkCurvatureConstraint.h
-  mirtkDeformableConfig.h
-  mirtkDeformableSurfaceDebugger.h
-  mirtkDeformableSurfaceLogger.h
-  mirtkDeformableSurfaceModel.h
-  mirtkEulerMethod.h
-  mirtkEulerMethodWithDamping.h
-  mirtkEulerMethodWithMomentum.h
-  mirtkExternalForce.h
-  mirtkExternalForceTerm.h
-  mirtkImageEdgeForce.h
-  mirtkImplicitSurfaceDistance.h
-  mirtkImplicitSurfaceForce.h
-  mirtkImplicitSurfaceSpringForce.h
-  mirtkInflationForce.h
-  mirtkInflationStoppingCriterion.h
-  mirtkInternalForce.h
-  mirtkInternalForceTerm.h
-  mirtkMetricDistortion.h
-  mirtkMinActiveStoppingCriterion.h
-  mirtkNonSelfIntersectionConstraint.h
-  mirtkPointSetForce.h
-  mirtkQuadraticCurvatureConstraint.h
-  mirtkRepulsiveForce.h
-  mirtkSpringForce.h
-  mirtkStretchingForce.h
-  mirtkSurfaceConstraint.h
-  mirtkSurfaceForce.h
+  ${BINARY_INCLUDE_DIR}/mirtk/DeformableExport.h
+  BalloonForce.h
+  CurvatureConstraint.h
+  DeformableConfig.h
+  DeformableSurfaceDebugger.h
+  DeformableSurfaceLogger.h
+  DeformableSurfaceModel.h
+  EulerMethod.h
+  EulerMethodWithDamping.h
+  EulerMethodWithMomentum.h
+  ExternalForce.h
+  ExternalForceTerm.h
+  GaussCurvatureConstraint.h
+  ImageEdgeDistance.h
+  ImageEdgeForce.h
+  ImplicitSurfaceForce.h
+  ImplicitSurfaceDistance.h
+  InflationForce.h
+  InflationStoppingCriterion.h
+  InternalForce.h
+  InternalForceTerm.h
+  MeanCurvatureConstraint.h
+  MetricDistortion.h
+  MinActiveStoppingCriterion.h
+  NonSelfIntersectionConstraint.h
+  PointSetForce.h
+  QuadraticCurvatureConstraint.h
+  RepulsiveForce.h
+  SpringForce.h
+  StretchingForce.h
+  SurfaceConstraint.h
+  SurfaceForce.h
 )
 
 set(SOURCES
-  mirtkBalloonForce.cc
-  mirtkCurvatureConstraint.cc
-  mirtkDeformableConfig.cc
-  mirtkDeformableSurfaceDebugger.cc
-  mirtkDeformableSurfaceLogger.cc
-  mirtkDeformableSurfaceModel.cc
-  mirtkEulerMethod.cc
-  mirtkEulerMethodWithDamping.cc
-  mirtkEulerMethodWithMomentum.cc
-  mirtkExternalForce.cc
-  mirtkImageEdgeForce.cc
-  mirtkImplicitSurfaceDistance.cc
-  mirtkImplicitSurfaceForce.cc
-  mirtkImplicitSurfaceSpringForce.cc
-  mirtkInflationForce.cc
-  mirtkInflationStoppingCriterion.cc
-  mirtkInternalForce.cc
-  mirtkMetricDistortion.cc
-  mirtkMinActiveStoppingCriterion.cc
-  mirtkNonSelfIntersectionConstraint.cc
-  mirtkPointSetForce.cc
-  mirtkQuadraticCurvatureConstraint.cc
-  mirtkRepulsiveForce.cc
-  mirtkSpringForce.cc
-  mirtkStretchingForce.cc
-  mirtkSurfaceConstraint.cc
-  mirtkSurfaceForce.cc
+  BalloonForce.cc
+  CurvatureConstraint.cc
+  DeformableConfig.cc
+  DeformableSurfaceDebugger.cc
+  DeformableSurfaceLogger.cc
+  DeformableSurfaceModel.cc
+  EulerMethod.cc
+  EulerMethodWithDamping.cc
+  EulerMethodWithMomentum.cc
+  ExternalForce.cc
+  GaussCurvatureConstraint.cc
+  ImageEdgeDistance.cc
+  ImageEdgeForce.cc
+  ImplicitSurfaceForce.cc
+  ImplicitSurfaceDistance.cc
+  InflationForce.cc
+  InflationStoppingCriterion.cc
+  InternalForce.cc
+  MeanCurvatureConstraint.cc
+  MetricDistortion.cc
+  MinActiveStoppingCriterion.cc
+  NonSelfIntersectionConstraint.cc
+  PointSetForce.cc
+  QuadraticCurvatureConstraint.cc
+  RepulsiveForce.cc
+  SpringForce.cc
+  StretchingForce.cc
+  SurfaceConstraint.cc
+  SurfaceForce.cc
 )
 
 set(DEPENDS
@@ -89,7 +94,12 @@ set(DEPENDS
   LibNumerics
   LibImage
   LibPointSet
+  LibIO
   ${VTK_LIBRARIES}
 )
+
+if (TARGET TBB::tbb)
+  list(APPEND DEPENDS TBB::tbb)
+endif ()
 
 mirtk_add_library(AUTO_REGISTER)
